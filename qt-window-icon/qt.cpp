@@ -30,7 +30,6 @@
 #include <stdlib.h>
 #include <sys/mman.h>
 
-#define ELFPNG_IMPLEMENTATION
 #include "../elfpng.h"
 
 

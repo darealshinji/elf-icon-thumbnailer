@@ -19,5 +19,4 @@ gtk: gtk.c
 done
 
 gtk.c: ../elfpng.h
-../elfpng.h: ../elfpng.i
 

@@ -25,6 +25,5 @@ uninstall:
 	-rm -f $(INSTALL_PREFIX)/bin/$(BIN)
 	-rm -f $(INSTALL_PREFIX)/share/thumbnailers/$(CONF)
 
-$(BIN).c: ../elfpng.h
-../elfpng.h: ../elfpng.i
+$(BIN).cpp: ../elfpng.h
 

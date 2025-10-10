@@ -52,13 +52,6 @@ elfpng.h
 --------
 
 Writing code that parses ELF files is not easy so I'm offering a header-only library.
-The file `elfpng.i` must be in the compiler's header search path too.
-
-Define `ELFPNG_IMPLEMENTATION` before including the header to not only add the prototypes:
-``` c
-#define ELFPNG_IMPLEMENTATION
-#include "elfpng.h"
-```
 
 Here's an example showing how to load the largest icon from the current executable
 using the path `/proc/self/exe`:
@@ -68,26 +61,29 @@ size_t filesize, num, n;
 /* open file */
 void *addr = elfpng_open_file("/proc/self/exe", &filesize);
 
-if (addr != MAP_FAILED) {
-    struct elfpng_section *sec = elfpng_data(addr, filesize, &num);
+if (addr == MAP_FAILED) {
+    return;
+}
 
-    if (sec != NULL) {
-        /* find largest icon */
-        n = 0;
+struct elfpng_section *sec = elfpng_data(addr, filesize, &num);
 
-        for (size_t i = 1; i < num; i++) {
-            if (sec[i].height > sec[n].height) {
-                n = i;
-            }
+if (sec != NULL) {
+    /* find largest icon */
+    n = 0;
+
+    for (size_t i = 1; i < num; i++) {
+        if (sec[i].height > sec[n].height) {
+            n = i;
         }
-
-        /* do something with the data */
-        my_window_icon_setter(sec[n].data, sec[n].datasize);
     }
 
-    /* release data */
-    free(sec);
-    munmap(addr, filesize);
+    /* do something with the data */
+    my_window_icon_setter(sec[n].data, sec[n].datasize);
 }
+
+/* release data */
+free(sec);
+munmap(addr, filesize);
+
 
 ```

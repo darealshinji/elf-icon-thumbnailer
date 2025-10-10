@@ -12,7 +12,7 @@ clean:
 distclean: clean
 	$(MAKE) -f Makefile distclean
 
-qt: Makefile qt.cpp ../elfpng.h
+qt: Makefile qt.cpp
 	$(MAKE) -f Makefile qt
 	for n in $(RESOLUTIONS) ; do \
   objcopy --add-section .png.$$n=../icons/icon_$$n.png \
@@ -22,5 +22,4 @@ done
 Makefile: qt.pro
 	$(QMAKE) qt.pro
 
-../elfpng.h: ../elfpng.i
-
+qt.cpp: ../elfpng.h
