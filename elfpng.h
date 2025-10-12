@@ -95,11 +95,11 @@ static uint16_t elfpng_bswap_16(uint16_t x, uint8_t byteorder) {
     return (byteorder == ELFDATA2NATIVE) ? x : bswap_16(x);
 }
 
-static uint16_t elfpng_bswap_32(uint32_t x, uint8_t byteorder) {
+static uint32_t elfpng_bswap_32(uint32_t x, uint8_t byteorder) {
     return (byteorder == ELFDATA2NATIVE) ? x : bswap_32(x);
 }
 
-static uint16_t elfpng_bswap_64(uint64_t x, uint8_t byteorder) {
+static uint64_t elfpng_bswap_64(uint64_t x, uint8_t byteorder) {
     return (byteorder == ELFDATA2NATIVE) ? x : bswap_64(x);
 }
 
