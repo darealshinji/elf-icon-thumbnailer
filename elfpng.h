@@ -96,36 +96,28 @@ static uint64_t elfpng_val_64(uint64_t x, uint8_t order) {
     return (order == ELFDATA2NATIVE) ? x : bswap_64(x);
 }
 
+static uint32_t elfpng_ntoh32(uint8_t *data) {
+    uint32_t *val = (uint32_t *)data;
+    return ELFPNG_NTOH32(*val);
+}
+
 
 static struct elfpng_section *elfpng_save_png_section(struct elfpng_section *sec, size_t *num, uint8_t *data, size_t datasize)
 {
-    struct _elfpng_header {
-        uint8_t   hdr[16];  /* PNG magic bytes + begin of first data chunk */
-        uint32_t  width;    /* image width, big endian */
-        uint32_t  height;   /* image height, big endian */
-    };
-
-    const char * const header_chunk =
+    const char * const png_hdr =
         "\x89PNG\r\n\x1A\n" /* PNG magic bytes */
         "\x00\x00\x00\x0D"  /* chunk data length, big endian */
-        "IHDR";             /* chunk type */
+        "IHDR"              /* chunk type */
+        /* "\0\0\0\0" */    /* width, big endian */
+        /* "\0\0\0\0" */;   /* height, big endian */
 
-    /* check PNG magic bytes plus begin of IHDR chunk */
-    if (datasize >= sizeof(struct _elfpng_header)) {
-        struct _elfpng_header *hdr = (struct _elfpng_header *)data;
-
-        if (memcmp(header_chunk, hdr->hdr, sizeof(hdr->hdr)) == 0) {
-            sec = (struct elfpng_section *)realloc(sec, sizeof(struct elfpng_section) * (*num + 1));
-
-            sec[*num].data = data;
-            sec[*num].datasize = datasize;
-
-            /* these values are always in network byte order */
-            sec[*num].width = ELFPNG_NTOH32(hdr->width);
-            sec[*num].height = ELFPNG_NTOH32(hdr->height);
-
-            *num = *num + 1;
-        }
+    if (datasize > 24 && memcmp(data, png_hdr, 16) == 0) {
+        sec = (struct elfpng_section *)realloc(sec, sizeof(struct elfpng_section) * (*num + 1));
+        sec[*num].data = data;
+        sec[*num].datasize = datasize;
+        sec[*num].width = elfpng_ntoh32(data + 16);
+        sec[*num].height = elfpng_ntoh32(data + 20);
+        *num = *num + 1;
     }
 
     return sec;
