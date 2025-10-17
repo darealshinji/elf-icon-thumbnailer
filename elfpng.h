@@ -75,10 +75,8 @@ struct elfpng_section *elfpng_data(void *map_addr, size_t filesize, size_t *num)
 
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 # define ELFDATA2NATIVE   ELFDATA2LSB
-# define ELFPNG_NTOH32(x) (bswap_32(x))
 #elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 # define ELFDATA2NATIVE   ELFDATA2MSB
-# define ELFPNG_NTOH32(x) (x)
 #else
 # error "unknown byte order"
 #endif
@@ -98,7 +96,7 @@ static uint64_t elfpng_val_64(uint64_t x, uint8_t order) {
 
 static uint32_t elfpng_ntoh32(uint8_t *data) {
     uint32_t *val = (uint32_t *)data;
-    return ELFPNG_NTOH32(*val);
+    return (ELFDATA2NATIVE == ELFDATA2MSB) ? *val : bswap_32(*val);
 }
 
 
