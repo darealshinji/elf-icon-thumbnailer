@@ -36,15 +36,15 @@
 #include <unistd.h>
 
 
-#define ELFPNG_SPFX      ".png."
-#define ELFPNG_SPFX_LEN  5
+#define ELFPNG_SECPFX      ".png."
+#define ELFPNG_SECPFX_LEN  5
 
 
 struct elfpng_section {
-    uint8_t  *data;      /* pointer to PNG data */
-    size_t    datasize;  /* PNG data size */
-    uint32_t  width;     /* icon width */
-    uint32_t  height;    /* icon height */
+    uint8_t  *data;  /* pointer to PNG data */
+    size_t    size;  /* PNG data size */
+    uint32_t  w;     /* icon width */
+    uint32_t  h;     /* icon height */
 };
 
 
@@ -100,140 +100,107 @@ static uint32_t elfpng_ntoh32(uint8_t *data) {
 }
 
 
-static struct elfpng_section *elfpng_save_png_section(struct elfpng_section *sec, size_t *num, uint8_t *data, size_t datasize)
-{
-    const char * const png_hdr =
-        "\x89PNG\r\n\x1A\n" /* PNG magic bytes */
-        "\x00\x00\x00\x0D"  /* chunk data length, big endian */
-        "IHDR"              /* chunk type */
-        /* "\0\0\0\0" */    /* width, big endian */
-        /* "\0\0\0\0" */;   /* height, big endian */
-
-    if (datasize > 24 && memcmp(data, png_hdr, 16) == 0) {
-        sec = (struct elfpng_section *)realloc(sec, sizeof(struct elfpng_section) * (*num + 1));
-        sec[*num].data = data;
-        sec[*num].datasize = datasize;
-        sec[*num].width = elfpng_ntoh32(data + 16);
-        sec[*num].height = elfpng_ntoh32(data + 20);
-        *num = *num + 1;
-    }
-
-    return sec;
+#define TEMPLATE_ELFPNG_DATA(PSEC, UINTXX_T, ELF_EHDR, ELF_SHDR, ELFPNG_VAL_XX) \
+{ \
+    ELF_EHDR *ehdr; \
+    ELF_SHDR *shdr; \
+    UINTXX_T shoff, shnum, shstrndx, strtab_off; \
+    UINTXX_T i; \
+\
+    const char hdr[] = \
+        "\x89PNG\r\n\x1A\n" /* PNG magic bytes */ \
+        "\x00\x00\x00\x0D"  /* chunk data length (13 bytes), big endian */ \
+        "IHDR"              /* chunk type */ \
+        /* ... */;          /* + width + height */ \
+\
+    const size_t hdrlen = sizeof(hdr) - 1; \
+\
+    ehdr = (ELF_EHDR *)addr; \
+    shoff = ELFPNG_VAL_XX(ehdr->e_shoff, order); \
+    shnum = elfpng_val_16(ehdr->e_shnum, order); \
+    shstrndx = elfpng_val_16(ehdr->e_shstrndx, order); \
+\
+    if (shoff >= filesize || shoff == 0) { \
+        return NULL; \
+    } \
+\
+    shdr = (ELF_SHDR *)(addr + shoff); \
+\
+    /* special index number values */ \
+    if ((shnum == 0 && (shnum = ELFPNG_VAL_XX(shdr[0].sh_size, order)) == 0) || \
+        (shstrndx == SHN_XINDEX && (shstrndx = ELFPNG_VAL_XX(shdr[0].sh_link, order)) == 0)) \
+    { \
+        return NULL; \
+    } \
+\
+    /* strtab offset */ \
+    strtab_off = ELFPNG_VAL_XX(shdr[shstrndx].sh_offset, order); \
+\
+    if (strtab_off >= filesize) { \
+        return NULL; \
+    } \
+\
+    /* look for icon sections */ \
+    for (i = 1; i < shnum; ++i) { \
+        UINTXX_T sh_name, sh_offset, sh_size; \
+        const char *name; \
+        uint8_t *data; \
+\
+        if (i == shstrndx) { \
+            continue; \
+        } \
+\
+        sh_name = ELFPNG_VAL_XX(shdr[i].sh_name, order); \
+        sh_offset = ELFPNG_VAL_XX(shdr[i].sh_offset, order); \
+        sh_size = ELFPNG_VAL_XX(shdr[i].sh_size, order); \
+\
+        if (sh_offset >= filesize || (strtab_off + sh_name) >= filesize || \
+            sh_size < hdrlen + 8) \
+        { \
+            continue; \
+        } \
+\
+        /* section name */ \
+        name = (const char *)(addr + strtab_off + sh_name); \
+\
+        if (strncmp(name, ELFPNG_SECPFX, ELFPNG_SECPFX_LEN) != 0 || \
+            name[ELFPNG_SECPFX_LEN] == 0) \
+        { \
+            continue; \
+        } \
+\
+        /* section data */ \
+        data = addr + sh_offset; \
+\
+        if (memcmp(data, hdr, hdrlen) == 0) { \
+            /* append PNG section info */ \
+            PSEC = (struct elfpng_section *)realloc(PSEC, sizeof(struct elfpng_section) * (*num + 1)); \
+            PSEC[*num].data = data; \
+            PSEC[*num].size = sh_size; \
+            PSEC[*num].w = elfpng_ntoh32(data + hdrlen); \
+            PSEC[*num].h = elfpng_ntoh32(data + hdrlen + 4); \
+            *num = *num + 1; \
+        } \
+    } \
 }
-
 
 static struct elfpng_section *elfpng_data32(uint8_t *addr, size_t filesize, size_t *num, uint8_t order)
 {
     struct elfpng_section *sec = NULL;
-
-    Elf32_Ehdr *ehdr = (Elf32_Ehdr *)addr;
-    uint32_t shoff = elfpng_val_32(ehdr->e_shoff, order);
-    uint32_t shnum = elfpng_val_16(ehdr->e_shnum, order);
-    uint32_t shstrndx = elfpng_val_16(ehdr->e_shstrndx, order);
-
-    if (shoff >= filesize || shoff == 0) {
-        return NULL;
-    }
-
-    Elf32_Shdr *shdr = (Elf32_Shdr *)(addr + shoff);
-
-    /* special index number values */
-    if ((shnum == 0 && (shnum = elfpng_val_32(shdr[0].sh_size, order)) == 0) ||
-        (shstrndx == SHN_XINDEX && (shstrndx = elfpng_val_32(shdr[0].sh_link, order)) == 0))
-    {
-        return NULL;
-    }
-
-    /* strtab offset */
-    uint32_t strtab_off = elfpng_val_32(shdr[shstrndx].sh_offset, order);
-
-    if (strtab_off >= filesize) {
-        return NULL;
-    }
-
-    /* look for icon sections */
-    for (uint32_t i = 0; i < shnum; i++) {
-        if (i == shstrndx) {
-            continue;
-        }
-
-        uint32_t sh_name = elfpng_val_32(shdr[i].sh_name, order);
-        uint32_t sh_offset = elfpng_val_32(shdr[i].sh_offset, order);
-        uint32_t sh_size = elfpng_val_32(shdr[i].sh_size, order);
-
-        if (sh_offset >= filesize || (strtab_off + sh_name) >= filesize) {
-            continue;
-        }
-
-        const char *name = (const char *)(addr + strtab_off + sh_name);
-
-        if (strncmp(name, ELFPNG_SPFX, ELFPNG_SPFX_LEN) == 0 &&
-            name[ELFPNG_SPFX_LEN] != 0)
-        {
-            /* append PNG section info */
-            sec = elfpng_save_png_section(sec, num, addr + sh_offset, sh_size);
-        }
-    }
+    TEMPLATE_ELFPNG_DATA(sec, uint32_t, Elf32_Ehdr, Elf32_Shdr, elfpng_val_32);
 
     return sec;
 }
-
 
 static struct elfpng_section *elfpng_data64(uint8_t *addr, size_t filesize, size_t *num, uint8_t order)
 {
     struct elfpng_section *sec = NULL;
-
-    Elf64_Ehdr *ehdr = (Elf64_Ehdr *)addr;
-    uint64_t shoff = elfpng_val_64(ehdr->e_shoff, order);
-    uint64_t shnum = elfpng_val_16(ehdr->e_shnum, order);
-    uint64_t shstrndx = elfpng_val_16(ehdr->e_shstrndx, order);
-
-    if (shoff >= filesize || shoff == 0) {
-        return NULL;
-    }
-
-    Elf64_Shdr *shdr = (Elf64_Shdr *)(addr + shoff);
-
-    /* special index number values */
-    if ((shnum == 0 && (shnum = elfpng_val_64(shdr[0].sh_size, order)) == 0) ||
-        (shstrndx == SHN_XINDEX && (shstrndx = elfpng_val_64(shdr[0].sh_link, order)) == 0))
-    {
-        return NULL;
-    }
-
-    /* strtab offset */
-    uint64_t strtab_off = elfpng_val_64(shdr[shstrndx].sh_offset, order);
-
-    if (strtab_off >= filesize) {
-        return NULL;
-    }
-
-    /* look for icon sections */
-    for (uint64_t i = 0; i < shnum; i++) {
-        if (i == shstrndx) {
-            continue;
-        }
-
-        uint64_t sh_name = elfpng_val_64(shdr[i].sh_name, order);
-        uint64_t sh_offset = elfpng_val_64(shdr[i].sh_offset, order);
-        uint64_t sh_size = elfpng_val_64(shdr[i].sh_size, order);
-
-        if (sh_offset >= filesize || (strtab_off + sh_name) >= filesize) {
-            continue;
-        }
-
-        const char *name = (const char *)(addr + strtab_off + sh_name);
-
-        if (strncmp(name, ELFPNG_SPFX, ELFPNG_SPFX_LEN) == 0 &&
-            name[ELFPNG_SPFX_LEN] != 0)
-        {
-            /* append PNG section info */
-            sec = elfpng_save_png_section(sec, num, addr + sh_offset, sh_size);
-        }
-    }
+    TEMPLATE_ELFPNG_DATA(sec, uint64_t, Elf64_Ehdr, Elf64_Shdr, elfpng_val_64);
 
     return sec;
 }
+
+#undef TEMPLATE_ELFPNG_DATA
 
 
 void *elfpng_open_file(const char *file, size_t *filesize)
@@ -280,14 +247,16 @@ void *elfpng_open_file(const char *file, size_t *filesize)
 
 struct elfpng_section *elfpng_data(void *map_addr, size_t filesize, size_t *num)
 {
+    uint8_t *addr, order;
+
     if (map_addr == MAP_FAILED || filesize < sizeof(Elf64_Ehdr) || !num) {
         return NULL;
     }
 
-    uint8_t *addr = (uint8_t *)map_addr;
-    uint8_t order = addr[EI_DATA];
+    addr = (uint8_t *)map_addr;
+    order = addr[EI_DATA];
 
-    /* byte order check */
+    /* check byte order */
     if (order != ELFDATA2LSB && order != ELFDATA2MSB) {
         return NULL;
     }

@@ -29,82 +29,40 @@
 #include <iostream>
 #include <stdlib.h>
 #include <sys/mman.h>
-
 #include "../elfpng.h"
-
-
-class myelfpng
-{
-private:
-    const char *m_filename;
-    void *m_addr = MAP_FAILED;
-    size_t m_filesize = 0;
-    size_t m_num = 0;
-    struct elfpng_section *m_sec = NULL;
-
-public:
-
-    myelfpng(const char *filename) : m_filename(filename)
-    {}
-
-    ~myelfpng()
-    {
-        if (m_addr != MAP_FAILED) {
-            munmap(m_addr, m_filesize);
-        }
-
-        free(m_sec);
-    }
-
-    bool load_sections()
-    {
-        if (m_addr == MAP_FAILED) {
-            if ((m_addr = elfpng_open_file(m_filename, &m_filesize)) == MAP_FAILED ||
-                (m_sec = elfpng_data(m_addr, m_filesize, &m_num)) == NULL)
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    struct elfpng_section *sections() const {
-        return m_sec;
-    }
-
-    size_t size() const {
-        return m_num;
-    }
-};
 
 
 static void set_application_icon(QApplication *app)
 {
-    myelfpng png("/proc/self/exe");
+    size_t filesize, num;
+    void *addr = elfpng_open_file("/proc/self/exe", &filesize);
 
-    if (!png.load_sections()) {
+    if (addr == MAP_FAILED) {
         return;
     }
 
-    auto sec = png.sections();
-    size_t n = 0;
+    auto sec = elfpng_data(addr, filesize, &num);
 
-    /* get largest icon */
-    for (size_t i = 1; i < png.size(); i++) {
-        if (sec[i].height > sec[n].height) {
-            n = i;
+    if (sec) {
+        QPixmap pixmap;
+        size_t n = 0;
+
+        /* get largest icon */
+        for (size_t i = 1; i < num; i++) {
+            if (sec[i].h > sec[n].h) {
+                n = i;
+            }
         }
+
+        if (pixmap.loadFromData(sec[n].data, sec[n].size, "PNG")) {
+            app->setWindowIcon(QIcon(pixmap));
+            std::cout << "icon size is " << sec[n].w << " x " << sec[n].h << std::endl;
+        }
+
+        free(sec);
     }
 
-    QPixmap pixmap;
-
-    if (pixmap.loadFromData(sec[n].data, sec[n].datasize, "PNG")) {
-        app->setWindowIcon(QIcon(pixmap));
-
-        std::cout << "icon size is " << sec[n].width << " x " << sec[n].height
-            << std::endl;
-    }
+    munmap(addr, filesize);
 }
 
 

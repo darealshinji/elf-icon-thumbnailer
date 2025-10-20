@@ -53,7 +53,7 @@ public:
         close();
     }
 
-    int save(uint32_t size)
+    int save(uint32_t h)
     {
         size_t n = 0;
 
@@ -73,16 +73,16 @@ public:
 
         /* find icon with desired height or largest icon */
         for (size_t i = 0; i < m_num; i++) {
-            if (m_sec[i].height == size) {
+            if (m_sec[i].h == h) {
                 n = i;
                 break;
-            } else if (m_sec[i].height > m_sec[n].height) {
+            } else if (m_sec[i].h > m_sec[n].h) {
                 n = i;
             }
         }
 
         /* save data */
-        if (fwrite(m_sec[n].data, 1, m_sec[n].datasize, m_fpout) != m_sec[n].datasize) {
+        if (fwrite(m_sec[n].data, 1, m_sec[n].size, m_fpout) != m_sec[n].size) {
             unlink(m_fout);
             return 1;
         }

@@ -55,7 +55,7 @@ set_window_icon (GtkWidget *window)
     printf ("available sizes (height):");
 
     for (i = 0; i < num; i++) {
-      printf (" %d", sec[i].height);
+      printf (" %d", sec[i].h);
     }
     putchar ('\n');
 
@@ -63,14 +63,14 @@ set_window_icon (GtkWidget *window)
 
     /* get largest icon */
     for (i = 1; i < num; i++) {
-      if (sec[i].height > sec[n].height) {
+      if (sec[i].h > sec[n].h) {
         n = i;
       }
     }
 
     /* create pixbuf */
-    printf ("icon size: %d x %d\n", sec[n].width, sec[n].height);
-    stream = g_memory_input_stream_new_from_data (sec[n].data, sec[n].datasize, NULL);
+    printf ("icon size: %d x %d\n", sec[n].w, sec[n].h);
+    stream = g_memory_input_stream_new_from_data (sec[n].data, sec[n].size, NULL);
 
     if (stream) {
       icon = gdk_pixbuf_new_from_stream (stream, NULL, NULL);
