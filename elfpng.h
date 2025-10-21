@@ -55,7 +55,7 @@ struct elfpng_section {
  * is saved to the `filesize' parameter.
  * The mapping must later be deleted with a call to `munmap()'.
  *
- * On error MAP_FAILED is returned and the value of `filesize' is unspecified.
+ * On error MAP_FAILED is returned and the value of `filesize' is undefined.
  */
 void *elfpng_open_file(const char *file, size_t *filesize);
 
@@ -65,7 +65,7 @@ void *elfpng_open_file(const char *file, size_t *filesize);
  * saved to the `num' parameter.
  * The returned pointer must later be released with `free()'.
  *
- * On error NULL is returned and the value of `num' is unspecified.
+ * On error NULL is returned and the value of `num' is undefined.
  */
 struct elfpng_section *elfpng_data(void *map_addr, size_t filesize, size_t *num);
 
@@ -210,6 +210,10 @@ void *elfpng_open_file(const char *file, size_t *filesize)
     uint8_t buf[EI_NIDENT];
     void *addr = MAP_FAILED;
 
+    if (filesize) {
+        *filesize = 0;
+    }
+
     /* open file */
     if (!filesize || !file || !*file ||
         (fd = open(file, O_RDONLY)) == -1)
@@ -248,6 +252,10 @@ void *elfpng_open_file(const char *file, size_t *filesize)
 struct elfpng_section *elfpng_data(void *map_addr, size_t filesize, size_t *num)
 {
     uint8_t *addr, order;
+
+    if (num) {
+        *num = 0;
+    }
 
     if (map_addr == MAP_FAILED || filesize < sizeof(Elf64_Ehdr) || !num) {
         return NULL;

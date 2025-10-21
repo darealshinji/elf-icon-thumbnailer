@@ -27,89 +27,78 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <sys/mman.h>
-
 #include "../elfpng.h"
 
 
-class save_icon
+static int save_icon(const char *fin, const char *fout, uint32_t h)
 {
-private:
+    size_t i, n, num, filesize, remain, nbytes;
+    uint8_t *ptr;
+    void *addr = MAP_FAILED;
+    struct elfpng_section *sec = NULL;
+    FILE *fpout = NULL;
+    int rv = 1;
 
-    const char *m_fin, *m_fout;
-    void *m_addr = MAP_FAILED;
-    size_t m_filesize = 0;
-    size_t m_num = 0;
-    FILE *m_fpout = NULL;
-    struct elfpng_section *m_sec = NULL;
-
-public:
-
-    save_icon(const char *f_in, const char *f_out)
-    : m_fin(f_in), m_fout(f_out)
-    {}
-
-    ~save_icon()
-    {
-        close();
+    /* load section data */
+    if ((addr = elfpng_open_file(fin, &filesize)) == MAP_FAILED) {
+        return 1;
     }
 
-    int save(uint32_t h)
-    {
-        size_t n = 0;
+    if ((sec = elfpng_data(addr, filesize, &num)) == NULL) {
+        goto JMP_END;
+    }
 
-        close();
+    /* open output file for writing */
+    if ((fpout = fopen(fout, "wb")) == NULL) {
+        goto JMP_END;
+    }
 
-        /* load section data */
-        if ((m_addr = elfpng_open_file(m_fin, &m_filesize)) == MAP_FAILED ||
-            (m_sec = elfpng_data(m_addr, m_filesize, &m_num)) == NULL)
-        {
-            return 1;
+    /* find icon with desired height or largest icon */
+    for (i = n = 0; i < num; i++) {
+        if (sec[i].h == h) {
+            n = i;
+            break;
+        } else if (sec[i].h > sec[n].h) {
+            n = i;
+        }
+    }
+
+    /* save data */
+    nbytes = 512*1024;
+    ptr = sec[n].data;
+    remain = sec[n].size;
+
+    for ( ; remain != 0; ptr += nbytes, remain -= nbytes) {
+        if (remain < nbytes) {
+            nbytes = remain;
         }
 
-        /* open output file for writing */
-        if ((m_fpout = fopen(m_fout, "wb")) == NULL) {
-            return 1;
-        }
-
-        /* find icon with desired height or largest icon */
-        for (size_t i = 0; i < m_num; i++) {
-            if (m_sec[i].h == h) {
-                n = i;
-                break;
-            } else if (m_sec[i].h > m_sec[n].h) {
-                n = i;
+        if (fwrite(ptr, 1, nbytes, fpout) != nbytes) {
+            if (ferror(fpout) || !feof(fpout)) {
+                unlink(fout);
+                goto JMP_END;
             }
-        }
 
-        /* save data */
-        if (fwrite(m_sec[n].data, 1, m_sec[n].size, m_fpout) != m_sec[n].size) {
-            unlink(m_fout);
-            return 1;
+            break;
         }
-
-        return 0;
     }
 
-    void close()
-    {
-        if (m_addr != MAP_FAILED) {
-            munmap(m_addr, m_filesize);
-        }
+    rv = 0;
 
-        if (m_fpout) {
-            fclose(m_fpout);
-        }
+JMP_END:
 
-        if (m_sec) {
-            free(m_sec);
-        }
-
-        m_addr = MAP_FAILED;
-        m_filesize = m_num = 0;
-        m_fpout = NULL;
-        m_sec = NULL;
+    if (addr != MAP_FAILED) {
+        munmap(addr, filesize);
     }
-};
+
+    if (fpout) {
+        fclose(fpout);
+    }
+
+    free(sec);
+
+    return rv;
+}
 
 
 static uint32_t str_to_uint32(const char *str)
@@ -128,6 +117,13 @@ static uint32_t str_to_uint32(const char *str)
 }
 
 
+/**
+ * Thumbnailer Entry line must be `Exec=elf-icon-thumbnailer %s %i %o'
+ * %i = input file path
+ * %u = input file URI
+ * %o = output file path
+ * %s = vertical thumbnail size
+ */
 int main(int argc, char *argv[])
 {
     if (argc != 4) {
@@ -141,21 +137,11 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    /**
-     * Thumbnailer Entry line must be:
-     * Exec=elf-icon-thumbnailer %s %i %o
-     * %i input file path
-     * %u input file URI
-     * %o output file path
-     * %s vertical thumbnail size
-     */
     uint32_t size = str_to_uint32(argv[1]);
 
     if (size == UINT32_MAX) {
         return 1;
     }
 
-    save_icon icon(argv[2], argv[3]);
-
-    return icon.save(size);
+    return save_icon(argv[2], argv[3], size);
 }

@@ -1,4 +1,4 @@
-CXXFLAGS := -O2 -Wall -Wextra
+CFLAGS := -O2 -Wall -Wextra
 STRIP ?= strip
 
 BIN  = elf-icon-thumbnailer
@@ -12,8 +12,8 @@ all: $(BIN)
 clean:
 	-rm -f $(BIN)
 
-$(BIN): $(BIN).cpp
-	$(CXX) $(CXXFLAGS) $(BIN).cpp -o $(BIN) $(LDFLAGS)
+$(BIN): $(BIN).c
+	$(CC) $(CFLAGS) $(BIN).c -o $(BIN) $(LDFLAGS)
 
 install: $(BIN)
 	mkdir -p $(INSTALL_PREFIX)/bin $(INSTALL_PREFIX)/share/thumbnailers
@@ -25,5 +25,5 @@ uninstall:
 	-rm -f $(INSTALL_PREFIX)/bin/$(BIN)
 	-rm -f $(INSTALL_PREFIX)/share/thumbnailers/$(CONF)
 
-$(BIN).cpp: ../elfpng.h
+$(BIN).c: ../elfpng.h
 
