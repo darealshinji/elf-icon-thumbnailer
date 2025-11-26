@@ -207,7 +207,6 @@ void *elfpng_open_file(const char *file, size_t *filesize)
 {
     int fd;
     struct stat st;
-    uint8_t buf[EI_NIDENT];
     void *addr = MAP_FAILED;
 
     if (filesize) {
@@ -218,22 +217,6 @@ void *elfpng_open_file(const char *file, size_t *filesize)
     if (!filesize || !file || !*file ||
         (fd = open(file, O_RDONLY)) == -1)
     {
-        return MAP_FAILED;
-    }
-
-    /* magic bytes */
-    if (read(fd, &buf, EI_NIDENT) != EI_NIDENT ||
-        memcmp(buf, ELFMAG, SELFMAG) != 0)
-    {
-        close(fd);
-        return MAP_FAILED;
-    }
-
-    /* check ELF class and byte order */
-    if (!(buf[EI_CLASS] == ELFCLASS64 || buf[EI_CLASS] == ELFCLASS32) ||
-        !(buf[EI_DATA] == ELFDATA2LSB || buf[EI_DATA] == ELFDATA2MSB))
-    {
-        close(fd);
         return MAP_FAILED;
     }
 
@@ -262,20 +245,27 @@ struct elfpng_section *elfpng_data(void *map_addr, size_t filesize, size_t *num)
     }
 
     addr = (uint8_t *)map_addr;
-    order = addr[EI_DATA];
+
+    /* magic bytes */
+    if (memcmp(addr, ELFMAG, SELFMAG) != 0) {
+        return NULL;
+    }
 
     /* check byte order */
+    order = addr[EI_DATA];
+
     if (order != ELFDATA2LSB && order != ELFDATA2MSB) {
         return NULL;
     }
 
-    /* get section header data */
+    /* check ELF class and get section header data */
     if (addr[EI_CLASS] == ELFCLASS64) {
         return elfpng_data64(addr, filesize, num, order);
     } else if (addr[EI_CLASS] == ELFCLASS32) {
         return elfpng_data32(addr, filesize, num, order);
     }
 
+    /* unknown ELF class */
     return NULL;
 }
 
