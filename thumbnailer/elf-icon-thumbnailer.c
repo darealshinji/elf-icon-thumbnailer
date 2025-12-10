@@ -30,10 +30,31 @@
 #include "../elfpng.h"
 
 
+static int write_chunks(FILE *fp, const uint8_t *data, size_t len)
+{
+    size_t nbytes = 512*1024;
+
+    for ( ; len != 0; data += nbytes, len -= nbytes) {
+        if (len < nbytes) {
+            nbytes = len;
+        }
+
+        if (fwrite(data, 1, nbytes, fp) != nbytes) {
+            if (ferror(fp) || !feof(fp)) {
+                return 1;
+            }
+
+            break;
+        }
+    }
+
+    return 0;
+}
+
+
 static int save_icon(const char *fin, const char *fout, uint32_t h)
 {
-    size_t i, n, num, filesize, remain, nbytes;
-    uint8_t *ptr;
+    size_t i, n, num, filesize;
     void *addr = MAP_FAILED;
     struct elfpng_section *sec = NULL;
     FILE *fpout = NULL;
@@ -64,26 +85,9 @@ static int save_icon(const char *fin, const char *fout, uint32_t h)
     }
 
     /* save data */
-    nbytes = 512*1024;
-    ptr = sec[n].data;
-    remain = sec[n].size;
-
-    for ( ; remain != 0; ptr += nbytes, remain -= nbytes) {
-        if (remain < nbytes) {
-            nbytes = remain;
-        }
-
-        if (fwrite(ptr, 1, nbytes, fpout) != nbytes) {
-            if (ferror(fpout) || !feof(fpout)) {
-                unlink(fout);
-                goto JMP_END;
-            }
-
-            break;
-        }
+    if ((rv = write_chunks(fpout, sec[n].data, sec[n].size)) != 0) {
+        unlink(fout);
     }
-
-    rv = 0;
 
 JMP_END:
 

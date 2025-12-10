@@ -74,9 +74,9 @@ struct elfpng_section *elfpng_data(void *map_addr, size_t filesize, size_t *num)
 /**********************************************************************************/
 
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-# define ELFDATA2NATIVE   ELFDATA2LSB
+# define ELFDATA2NATIVE  ELFDATA2LSB
 #elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-# define ELFDATA2NATIVE   ELFDATA2MSB
+# define ELFDATA2NATIVE  ELFDATA2MSB
 #else
 # error "unknown byte order"
 #endif
